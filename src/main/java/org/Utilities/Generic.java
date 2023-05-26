@@ -8,6 +8,8 @@ import java.util.ArrayList;
 import java.util.List;
 import javax. xml. parsers. DocumentBuilder;
 import javax.xml.parsers. DocumentBuilderFactory;
+import javax.xml.xpath.XPath;
+import javax.xml.xpath.XPathFactory;
 //import org.example.ExcelOperation;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFCell;
@@ -23,6 +25,9 @@ import org. xmlunit. builder. DiffBuilder;
 import org.xmlunit.builder. Input;
 import org. xmlunit. diff. Diff;
 import org. xmlunit. diff. Difference;
+
+import static org.xmlunit.diff.AbstractDifferenceEngine.getXPath;
+
 public class Generic {
         public static XSSFWorkbook workbook = new XSSFWorkbook();
         public String path;
@@ -158,9 +163,6 @@ public class Generic {
         int rowNum=1;
 
 
-
-
-
         DocumentBuilderFactory factory = DocumentBuilderFactory. newInstance ();
     DocumentBuilder builder = factory. newDocumentBuilder ();
     Document document = builder.parse (inputStream);
@@ -244,6 +246,25 @@ public class Generic {
                     doc2.getDocumentElement().normalize();
 
 
+                    CellStyle style = workbook.createCellStyle();
+                    CellStyle style2 = workbook.createCellStyle();
+                    CellStyle style3= workbook.createCellStyle();
+
+                    CellStyle styleAll = workbook.createCellStyle();
+
+                    Font font = workbook.createFont();
+                    font.setBold(true);
+                    style.setFont(font);
+                    style.setAlignment(HorizontalAlignment.CENTER);
+
+                    style2.setFont(font);
+                    style2.setFillForegroundColor(IndexedColors.LIGHT_GREEN.getIndex());
+                    style2.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+                    style2.setFillBackgroundColor(IndexedColors.LIGHT_GREEN.getIndex());
+                    style2.setFillPattern(FillPatternType.BIG_SPOTS);
+                    style2.setAlignment(HorizontalAlignment.CENTER);
+
+
                     List<String> columnNames = new ArrayList<>();
                     List<List<String>> data1 = new ArrayList<List<String>>();
                     List<List<String>> data2 = new ArrayList<List<String>>();
@@ -266,29 +287,38 @@ public class Generic {
                     Row totalrow = sheet.createRow(rowNumber++);
                     totalrow.createCell(1).setCellValue("Total difference");
                     totalrow.createCell(2).setCellValue(diffs.size());
+
+                    totalrow.getCell(1).setCellStyle(style2);
+                    totalrow.getCell(1).setCellStyle(style2);
+
                     rowNumber++;
 
 
-                    CellStyle style = workbook.createCellStyle();
-                    Font font = workbook.createFont();
-                    font.setBold(true);
-                    style.setFont(font);
+
+
+
+
+
+
                     Row headerRow = sheet.createRow(rowNumber++);
                     Cell cell = headerRow.createCell(0);
                     cell.setCellValue("Application ID");
                     cell.setCellStyle(style);
+
                     cell = headerRow.createCell(1);
-                    cell.setCellValue("path");
+                    cell.setCellValue("TagHierarchy");
                     cell.setCellStyle(style);
+
                     cell = headerRow.createCell(2);
-                    cell.setCellValue("Data in first XML");
+                    cell.setCellValue("Data in BeforeCode XML");
                     cell.setCellStyle(style);
+
                     cell = headerRow.createCell(3);
-                    cell.setCellValue("Data in second XML");
+                    cell.setCellValue("Data in AfterCode XML");
                     cell.setCellStyle(style);
 
                     cell = headerRow.createCell(4);
-                    cell.setCellValue("Description");
+                    cell.setCellValue("MismatchDescription");
                     cell.setCellStyle(style);
 
                     for (String[] difference : differences) {
@@ -296,20 +326,19 @@ public class Generic {
                         Row row = sheet.createRow(rowNumber++);
                         row.createCell(0).setCellValue(difference[0]);
 
-                        Difference differ = diffs.get(index);
-                        String xpath = differ.getComparison().getControlDetails().getXPath();
+                     //   Difference differ = diffs.get(index);
+                        String xpath = diffs.get(index).getComparison().getControlDetails().getXPath();
 
                         row.createCell(1).setCellValue(xpath);
                         try {
                             row.createCell(2).setCellValue(Integer.parseInt(difference[1]));
-                            cell = row.createCell(3);
-                            cell.setCellValue(Integer.parseInt(difference[2]));
+                            row.createCell(3).setCellValue(Integer.parseInt(difference[2]));
 
 
                         } catch (Exception ex) {
                             row.createCell(2).setCellValue((difference[1]));
-                            cell = row.createCell(3);
-                            cell.setCellValue((difference[2]));
+                          //  cell = row.createCell(3);
+                            row.createCell(3).setCellValue(difference[2]);
 
                         }
                         row.createCell(4).setCellValue(diffs.get(index).getComparison().toString());
@@ -318,9 +347,11 @@ public class Generic {
                             policyCount++;
                         }
                         index++;
+                    }for(int i=0; i<6; i++){
+                        sheet.autoSizeColumn(i);
                     }
 
-                    String output=folderPath+"\\outputfilename.xlsx";
+                    String output=Config.resultPath;
                     fileout = new FileOutputStream(output);
                     workbook.write(fileout);
                     workbook.close();
@@ -331,16 +362,48 @@ public class Generic {
                     e.printStackTrace();
                 }
             }
+    public static String getXPathForNode (Node node) {
+        StringBuilder xpath = new StringBuilder ();
+        while (node != null && node.getNodeType() == Node.ELEMENT_NODE) {
+            Element element = (Element) node;
+            xpath.insert(  0,  "/" + element. getNodeName ());
+            int index = getElementIndex (element);
+            if
+            (index > 0) {
+                xpath.append(" [" + index + "]");
+            }
+            node = element.getParentNode();
+        }
+        return xpath.toString();
+    }
 
+    private static int getElementIndex (Element element) {
+        int index = 1;
+
+        Node prevSibling = element.getPreviousSibling();
+        while (prevSibling != null) {
+            if (prevSibling.getNodeType() == Node.ELEMENT_NODE && prevSibling.getNodeName().equals(element.getNodeName())) {
+                index++;
+            }
+            prevSibling = prevSibling.getPreviousSibling();
+        }
+        return index;
+    }
                 public List<String[]> compareNodes (Node node1, Node node2, StringBuilder id,
                         List<String> columnNames,
                         List<List<String>> list1,
                         List<List<String>> list2){
                 List<String[]> differences = new ArrayList<> () ;
+
+                    XPath xPath= XPathFactory.newInstance().newXPath();
+
                 if (!node1.getNodeName () . equals (node2 . getNodeName ())){
                 return differences;}
+
                 if (node1. getNodeName () . equalsIgnoreCase ("applicationID")) {
                     id. replace (0, id. length (), node1.getTextContent ()) ;}
+
+
                     if (node1. getNodeType () == Node.TEXT_NODE && node2. getNodeType () == Node.TEXT_NODE) {
                     if (!node1.getNodeValue () .trim ().equals("")){
                             String  data1 = node1. getNodeValue () .trim ();
@@ -352,7 +415,7 @@ public class Generic {
                     }
                     if (parent != null & parent. getFirstChild () . getNodeType () ==Node.TEXT_NODE){
                     String tagName = parent. getNodeName () ;
-                    System.out.println (tagName);
+
                     if (columnNames. contains (tagName)){
                         int index = columnNames.indexOf (tagName);
                     list1. get (index).add (data1);
@@ -369,7 +432,19 @@ public class Generic {
 
                 if (data1.equals (data2));{
                 String[] difference = new String [3];
-                difference [0] = id.toString ();
+
+                Node newParent=parent;
+                boolean check=false;
+                while (!newParent.getParentNode().getNodeName().equalsIgnoreCase("ConsolidatedAPP"))
+                {if (check){
+                    newParent = newParent.getParentNode();
+                }else {
+                    check=true;
+
+                }}
+                String s= getXPathForNode(newParent);
+                    String val = xPath.evaluate(s+"/applicationID", newParent);
+                difference [0] = val;
                 difference [1] = data1;
                 difference [2] = data2;
                 differences.add (difference);
@@ -378,6 +453,7 @@ public class Generic {
                     }  }}  else {
                             NodeList children1 = node1.getChildNodes() ;
                             NodeList children = node2. getChildNodes();
+
                             for (int i = 0; i< children1.getLength() && i < children. getLength(); i++) {
                                 Node child1 = children1.item(i);
                                 Node child2 = children.item(i);
